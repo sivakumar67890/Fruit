@@ -1,0 +1,227 @@
+local Library = {}
+
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local UI = Instance.new("ScreenGui")
+UI.Name = "DIVINE HUB"
+UI.Parent = game.CoreGui
+UI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Main Frame (slightly bigger size)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 220, 0, 200)
+MainFrame.Position = UDim2.new(0.5, -110, 0.5, -100)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = UI
+
+-- TopBar
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 30)
+TopBar.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -10, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "[DIVINE FRUIT FINDER]"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TopBar
+
+-- Container (larger to fit more functions)
+local Container = Instance.new("ScrollingFrame")
+Container.Size = UDim2.new(1, -10, 1, -60)
+Container.Position = UDim2.new(0, 5, 0, 35)
+Container.BackgroundTransparency = 1
+Container.ScrollBarThickness = 2
+Container.CanvasSize = UDim2.new(0, 0, 0, 200)
+Container.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 3)
+UIListLayout.Parent = Container
+
+-- Status Bar
+local StatusBar = Instance.new("Frame")
+StatusBar.Size = UDim2.new(1, -10, 0, 20)
+StatusBar.Position = UDim2.new(0, 5, 1, -25)
+StatusBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+StatusBar.BorderSizePixel = 0
+StatusBar.Parent = MainFrame
+
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1, -4, 1, -4)
+StatusText.Position = UDim2.new(0, 2, 0, 2)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = "Fruit Found: No"
+StatusText.TextColor3 = Color3.fromRGB(255, 255, 255)
+StatusText.TextSize = 14
+StatusText.Font = Enum.Font.GothamSemibold
+StatusText.Parent = StatusBar
+
+-- Utility functions
+local function CreateButton(text, callback)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, -4, 0, 30)
+    Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Text = text
+    Btn.Font = Enum.Font.Gotham
+    Btn.TextSize = 14
+    Btn.BorderSizePixel = 0
+    Btn.Parent = Container
+
+    Btn.MouseButton1Click:Connect(callback)
+    return Btn
+end
+
+local function CreateToggle(text, callback)
+    local Tgl = Instance.new("TextButton")
+    Tgl.Size = UDim2.new(1, -4, 0, 30)
+    Tgl.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    Tgl.TextColor3 = Color3.fromRGB(200, 0, 0)
+    Tgl.Text = text .. ": OFF"
+    Tgl.Font = Enum.Font.Gotham
+    Tgl.TextSize = 14
+    Tgl.BorderSizePixel = 0
+    Tgl.Parent = Container
+
+    local state = false
+    Tgl.MouseButton1Click:Connect(function()
+        state = not state
+        Tgl.Text = text .. ": " .. (state and "ON" or "OFF")
+        Tgl.TextColor3 = state and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(200, 0, 0)
+        callback(state)
+    end)
+end
+
+local function Notify(msg)
+    local Notification = Instance.new("Frame")
+    Notification.Size = UDim2.new(0, 250, 0, 50)
+    Notification.Position = UDim2.new(1, 10, 0.8, 0)
+    Notification.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+    Notification.BorderSizePixel = 1
+    Notification.BorderColor3 = Color3.fromRGB(255, 0, 0)
+    Notification.Parent = UI
+
+    local Text = Instance.new("TextLabel")
+    Text.Size = UDim2.new(1, 0, 1, 0)
+    Text.BackgroundTransparency = 1
+    Text.Text = msg
+    Text.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Text.Font = Enum.Font.GothamSemibold
+    Text.Parent = Notification
+
+    Notification:TweenPosition(UDim2.new(1, -260, 0.8, 0), "Out", "Quart", 0.5, true)
+    task.wait(3)
+    Notification:TweenPosition(UDim2.new(1, 10, 0.8, 0), "In", "Quart", 0.5, true, function()
+        Notification:Destroy()
+    end)
+end
+
+local function GetFruit()
+    for _, v in pairs(game.Workspace:GetChildren()) do
+        if v:IsA("Tool") and (v.Name:find("Fruit") or v:FindFirstChild("Handle")) then
+            return v
+        end
+    end
+    return nil
+end
+
+-- Core functions
+local function TeleportToFruit()
+    local fruit = GetFruit()
+    if fruit then
+        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = fruit.Handle.CFrame
+            Notify("Teleported to fruit")
+        end
+    else
+        Notify("No fruit found in server!")
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if Settings.FruitESP then
+        for _, v in pairs(game.Workspace:GetChildren()) do
+            if v:IsA("Tool") and (v.Name:find("Fruit") or v:FindFirstChild("Handle")) then
+                if not v:FindFirstChild("ESP") then
+                    local bbg = Instance.new("BillboardGui", v)
+                    bbg.Name = "ESP"
+                    bbg.AlwaysOnTop = true
+                    bbg.Size = UDim2.new(0, 100, 0, 50)
+                    bbg.Adornee = v:FindFirstChild("Handle")
+                    
+                    local txt = Instance.new("TextLabel", bbg)
+                    txt.Size = UDim2.new(1, 0, 1, 0)
+                    txt.BackgroundTransparency = 1
+                    txt.Text = v.Name
+                    txt.TextColor3 = Color3.fromRGB(255, 0, 0)
+                    txt.Font = Enum.Font.GothamBold
+                    txt.TextSize = 14
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if Settings.AutoCollect then
+            local fruit = GetFruit()
+            if fruit and LocalPlayer.Character then
+                local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if (root.Position - fruit.Handle.Position).Magnitude < 20 then
+                    firetouchinterest(root, fruit.Handle, 0)
+                    firetouchinterest(root, fruit.Handle, 1)
+                    task.wait(0.5)
+                    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("StoreFruit", fruit.Name, fruit)
+                end
+            end
+        end
+    end
+end)
+
+CreateToggle("Fruit ESP", function(state) Settings.FruitESP = state end)
+CreateToggle("Auto Collect & Store", function(state) Settings.AutoCollect = state end)
+CreateButton("Instant Teleport to Fruit", TeleportToFruit)
+CreateButton("Tween to Fruit (Safe)", function() 
+    TeleportToFruit()
+end)
+
+-- Update status bar based on fruit presence
+local function UpdateStatus()
+    if GetFruit() then
+        StatusText.Text = "Fruit Found: Yes"
+        StatusText.TextColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        StatusText.Text = "Fruit Found: No"
+        StatusText.TextColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end
+
+-- Check for fruit periodically and update status
+task.spawn(function()
+    while true do
+        UpdateStatus()
+        task.wait(1)
+    end
+end)
+
+-- Initial check
+UpdateStatus()
